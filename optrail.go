@@ -1,6 +1,7 @@
 package optrail
 
 import (
+	"fmt"
 	"sync"
 )
 
@@ -11,7 +12,7 @@ var (
 
 // Begin creates a new OpTrail
 func Begin(name string) OpTrail {
-	return tManager.BeginOpTrail().Here("name", name)
+	return tManager.beginOpTrail().Here("name", name)
 }
 
 func PutGlobal(key string, value interface{}) {
@@ -128,4 +129,15 @@ func (t *opTrail) getFullMap() GenericMap {
 		m[k] = v
 	}
 	return m
+}
+
+func printMap(m GenericMap) {
+	for k, v := range m {
+		switch v := v.(type) {
+		case *timestamped:
+			fmt.Printf("T[%v] %v: %v\n", v.timestamp, k, v.data)
+		default:
+			fmt.Printf("[GLOBAL] %v: %v\n", k, v)
+		}
+	}
 }

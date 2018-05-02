@@ -17,7 +17,7 @@ func newTrailManager() *trailManager {
 	}
 }
 
-func (m *trailManager) BeginOpTrail() *opTrail {
+func (m *trailManager) beginOpTrail() *opTrail {
 	id := curGoroutineID()
 	m.Lock()
 	defer m.Unlock()
