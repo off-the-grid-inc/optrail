@@ -2,7 +2,6 @@ package optrail
 
 import (
 	"errors"
-	"fmt"
 	"testing"
 
 	log "github.com/sirupsen/logrus"
@@ -83,12 +82,10 @@ func TestVanish(t *testing.T) {
 
 	rManager.RegisterReporter(func(m GenericMap) {
 		if len(m) > 0 {
-			fmt.Println(m)
+			t.FailNow()
 		}
 	})
 	defer rManager.ClearReporters()
-
-	tManager.printTrails()
 
 	op := Begin("test-op")
 	op.Here("step1", "step1-val")
