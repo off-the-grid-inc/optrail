@@ -33,6 +33,12 @@ func (rm *ReporterManager) RegisterReporter(reporter Reporter) {
 	rm.reporters.Store(new)
 }
 
+func (rm *ReporterManager) ClearReporters() {
+	rm.Lock()
+	rm.reporters.Store(make([]Reporter, 0))
+	rm.Unlock()
+}
+
 func (rm *ReporterManager) getReporters() []Reporter {
 	return rm.reporters.Load().([]Reporter)
 }
