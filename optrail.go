@@ -3,6 +3,8 @@ package optrail
 import (
 	"fmt"
 	"sync"
+
+	atomic2 "github.com/uber-go/atomic"
 )
 
 var (
@@ -51,6 +53,7 @@ type opTrail struct {
 	parent       *opTrail
 	branchedFrom *opTrail
 	data         TimestampedMap
+	finalized    *atomic2.Bool
 }
 
 func makeOpTrail(id uint64, parent *opTrail, branchedFrom *opTrail) *opTrail {
@@ -59,24 +62,33 @@ func makeOpTrail(id uint64, parent *opTrail, branchedFrom *opTrail) *opTrail {
 		parent:       parent,
 		branchedFrom: branchedFrom,
 		data:         make(TimestampedMap),
+		finalized:    atomic2.NewBool(false),
 	}
 }
 
 func (t *opTrail) Succeed() {
+	if t.finalized.Load() {
+		return
+	}
+
 	t.Lock()
 	t.data["succeeded"] = newTimestamped(true)
 	t.Unlock()
-	t.finalize()
+	t.finalize(true)
 	return
 }
 
 func (t *opTrail) FailIf(err error) error {
+	if t.finalized.Load() {
+		return err
+	}
+
 	t.Lock()
 	vals := newTimestampedMulti(false, err)
 	t.data["succeeded"] = vals[0]
 	t.data["error"] = vals[1]
 	t.Unlock()
-	t.finalize()
+	t.finalize(true)
 	return err
 }
 
@@ -100,15 +112,20 @@ func (t *opTrail) Go(fn func()) {
 }
 
 func (t *opTrail) Vanish() {
-	tManager.removeTrail(t.id)
+	t.Lock()
+	t.data = make(TimestampedMap)
+	t.Unlock()
+	t.finalize(false)
 }
 
-func (t *opTrail) finalize() {
-	reporters := rManager.getReporters()
-	if len(reporters) > 0 {
-		m := t.getFullMap()
-		for _, reporter := range reporters {
-			reporter(m)
+func (t *opTrail) finalize(doReport bool) {
+	if doReport {
+		reporters := rManager.getReporters()
+		if len(reporters) > 0 {
+			m := t.getFullMap()
+			for _, reporter := range reporters {
+				reporter(m)
+			}
 		}
 	}
 
@@ -117,6 +134,7 @@ func (t *opTrail) finalize() {
 	} else {
 		tManager.setTrail(t.id, t.parent)
 	}
+	t.finalized.Store(true)
 }
 
 func (t *opTrail) getFullMap() GenericMap {

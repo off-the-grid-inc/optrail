@@ -1,6 +1,9 @@
 package optrail
 
-import "sync"
+import (
+	"fmt"
+	"sync"
+)
 
 type goId = uint64
 
@@ -52,4 +55,28 @@ func (m *trailManager) putGlobal(key string, value interface{}) {
 	m.Lock()
 	m.globals[key] = value
 	m.Unlock()
+}
+
+func (m *trailManager) clearGlobals() {
+	m.Lock()
+	m.trails = make(map[goId]*opTrail)
+	m.Unlock()
+}
+
+func (m *trailManager) killAll() {
+	m.Lock()
+	m.trails = make(map[goId]*opTrail)
+	m.Unlock()
+}
+
+func (m *trailManager) printTrails() {
+	m.RLock()
+	if len(m.trails) > 0 {
+		for k := range m.trails {
+			fmt.Printf("Trail ID %v\n", k)
+		}
+	} else {
+		fmt.Println("No trails.")
+	}
+	m.RUnlock()
 }

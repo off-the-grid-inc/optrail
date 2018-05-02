@@ -2,6 +2,7 @@ package optrail
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 
 	log "github.com/sirupsen/logrus"
@@ -12,8 +13,19 @@ func init() {
 	log.SetLevel(log.InfoLevel)
 }
 
+func TestTrailManager(t *testing.T) {
+	require := require.New(t)
+
+	op := tManager.beginOpTrail()
+	op2 := tManager.getTrail(op.id)
+	require.Equal(op, op2, "should be the same op")
+
+	defer tManager.killAll()
+}
+
 func TestSimple(t *testing.T) {
 	require := require.New(t)
+	defer tManager.killAll()
 
 	op := Begin("test-op")
 	op.Here("init", "todo bien")
@@ -27,6 +39,7 @@ func TestSimple(t *testing.T) {
 
 func TestSucceed(t *testing.T) {
 	require := require.New(t)
+	defer tManager.killAll()
 
 	rManager.RegisterReporter(func(m GenericMap) {
 		toFind := map[string]bool{"name": true, "step1": true, "step2": true, "step3": true}
@@ -46,6 +59,7 @@ func TestSucceed(t *testing.T) {
 
 func TestFailIf(t *testing.T) {
 	require := require.New(t)
+	defer tManager.killAll()
 
 	rManager.RegisterReporter(func(m GenericMap) {
 		toFind := map[string]bool{"name": true, "step1": true, "step2": true, "step3": true, "error": true}
@@ -62,4 +76,22 @@ func TestFailIf(t *testing.T) {
 	op.Here("step3", 1234567890)
 
 	require.Error(op.FailIf(errors.New("fake error")), "error didn't pass through")
+}
+
+func TestVanish(t *testing.T) {
+	defer tManager.killAll()
+
+	rManager.RegisterReporter(func(m GenericMap) {
+		if len(m) > 0 {
+			fmt.Println(m)
+		}
+	})
+	defer rManager.ClearReporters()
+
+	tManager.printTrails()
+
+	op := Begin("test-op")
+	op.Here("step1", "step1-val")
+	op.Vanish()
+	op.Succeed()
 }
