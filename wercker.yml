@@ -1,0 +1,20 @@
+box: golang:1.10.1
+
+build:
+  steps:
+    - wercker/setup-go-workspace:
+        package-dir: github.com/off-the-grid-inc/optrail
+    - script:
+        name: Install Dep
+        code: curl https://raw.githubusercontent.com/golang/dep/master/install.sh | sh
+    - script:
+        name: Install dependencies
+        code: dep ensure
+    - script:
+        name: Install and run errcheck
+        code: |
+          go get -u github.com/kisielk/errcheck
+          if [[ `errcheck ./... | wc -l` != "0" ]]; then echo "Errcheck failed" && $(exit 1); fi
+    - script:
+        name: Run tests
+        code: go test -v
