@@ -2,7 +2,9 @@ package optrail
 
 import (
 	"errors"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
@@ -93,7 +95,7 @@ func TestVanish(t *testing.T) {
 	op.Succeed()
 }
 
-func TestGo(t *testing.T) {
+func TestFork(t *testing.T) {
 	require := require.New(t)
 	defer tManager.killAll()
 
@@ -123,4 +125,25 @@ func TestGo(t *testing.T) {
 
 	require.Equal(1, foundParent, "expected to find parent once")
 	require.Equal(1, foundForked, "expected to find forked once")
+}
+
+func TestTransmute(t *testing.T) {
+	require := require.New(t)
+	defer tManager.killAll()
+
+	op := Begin("test-op")
+	opid := atomic.LoadUint64(&op.(*opTrail).id)
+	success := make(chan bool)
+
+	op.Transmute(func() {
+		time.Sleep(50 * time.Millisecond)
+		if opid == curGoroutineID() {
+			success <- false
+		} else {
+			success <- true
+		}
+	})
+
+	require.True(<-success, "should have a new goroutine ID")
+	require.Equal(opid, curGoroutineID(), "should have the original goroutine ID")
 }

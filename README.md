@@ -30,7 +30,8 @@ func step2(op *OpTrail) {
     // Do step2 work
 
     err := possiblyFailingCall()
-    if err = trail.MaybeFail(err) != nil {
+    if err = trail.MaybeFail(err); err != nil {
+        // Maybe show the error to the user, separately from the OpTrail lifecycle
         return
     }
 
@@ -44,9 +45,49 @@ func step3(trail *OpTrail) {
 
     trail.Succeed()
 }
-
 ```
 
+### Forking
+
+Forking means duplicating the trail into a new, independent one. It can be used when an operation becomes two.
+
+*NOTE: trail inheritance is not implemented yet (critical)*
+
+```go
+func step() {
+	op := Begin("test-op")
+	op2 := op.Fork()
+
+	op.Here("parent", "op1data")
+	op2.Here("forked", "op2data")
+
+	step2(op)
+	step2(op2)
+}
+```
+
+
+### Transmuting
+
+Transmuting is used for temporarily following a trail within a different and new goroutine. While that happens, the original trail will belong in the new goroutine, only returning back to the original goroutine after it returns.
+
+*NOTE: trail inheritance is not implemented yet (critical)*
+
+```go
+func step() {
+	op := Begin("test-op")
+    done := make(chan struct{})
+    op.Transmute(func() {
+        time.Sleep(2*time.Second)
+        op.Here("in-new-goroutine", "info from goroutine")
+        done <- struct{}{}
+    })
+
+    <-done
+    op.Here("in-old-goroutine", "info from old goroutine")
+    op.Succeed()
+}
+```
 
 ## TODO
 

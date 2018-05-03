@@ -45,8 +45,8 @@ type OpTrail interface {
 	// Fork creates a child OpTrail
 	Fork() OpTrail
 
-	// Spawn starts a given thunk on a new goroutine.
-	Spawn(fn func())
+	// Transmute lets the current OpTrail to continue temporarily as a different goroutine
+	Transmute(fn func())
 }
 
 type opTrail struct {
@@ -95,13 +95,17 @@ func (t *opTrail) MaybeFail(err error) error {
 }
 
 func (t *opTrail) Here(key string, value interface{}) OpTrail {
+	id := atomic.LoadUint64(&t.id)
+	if curGoroutineID() != id {
+		panic("calling from the wrong goroutine")
+	}
 	t.Lock()
 	t.data[key] = newTimestamped(value)
 	t.Unlock()
 	return t
 }
 
-func (t *opTrail) Spawn(fn func()) {
+func (t *opTrail) Transmute(fn func()) {
 	go func() {
 		id := curGoroutineID()
 		next := makeOpTrail(id, nil, t)
