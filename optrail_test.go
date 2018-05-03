@@ -92,3 +92,35 @@ func TestVanish(t *testing.T) {
 	op.Vanish()
 	op.Succeed()
 }
+
+func TestGo(t *testing.T) {
+	require := require.New(t)
+	defer tManager.killAll()
+
+	foundParent := 0
+	foundForked := 0
+
+	rManager.RegisterReporter(func(m GenericMap) {
+		for k, _ := range m {
+			switch k {
+			case "parent":
+				foundParent++
+			case "forked":
+				foundForked++
+			}
+		}
+	})
+	defer rManager.ClearReporters()
+
+	op := Begin("test-op")
+	op2 := op.Fork()
+
+	op.Here("parent", "op1")
+	op2.Here("forked", "op2")
+
+	op.Succeed()
+	op2.Succeed()
+
+	require.Equal(1, foundParent, "expected to find parent once")
+	require.Equal(1, foundForked, "expected to find forked once")
+}
