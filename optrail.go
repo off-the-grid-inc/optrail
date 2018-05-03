@@ -3,6 +3,7 @@ package optrail
 import (
 	"fmt"
 	"sync"
+	"sync/atomic"
 
 	atomic2 "github.com/uber-go/atomic"
 )
@@ -31,9 +32,8 @@ type OpTrail interface {
 	// Succeed marks this OpTrail as succeeded
 	Succeed()
 
-	// FailIf marks this OpTrail as failed if the given err is not nil. If FailIf is
-	// called multiple times, only the first one will be effective.
-	FailIf(err error) error
+	// MaybeFail fails the OpTrail immediately if the given err is not nil
+	MaybeFail(err error) error
 
 	// Here marks this point in time and adds a specific key value to provide
 	// information about it
@@ -42,27 +42,29 @@ type OpTrail interface {
 	// Vanish makes the trail disappear, no more actions can be done with it
 	Vanish()
 
-	// Go starts a given thunk on a new goroutine.
-	Go(fn func())
+	// Fork creates a child OpTrail
+	Fork() OpTrail
+
+	// Spawn starts a given thunk on a new goroutine.
+	Spawn(fn func())
 }
 
 type opTrail struct {
 	sync.RWMutex
-
-	id           goId
-	parent       *opTrail
-	branchedFrom *opTrail
-	data         TimestampedMap
-	finalized    *atomic2.Bool
+	id        goId
+	parent    *opTrail
+	spawnFrom *opTrail
+	data      TimestampedMap
+	finalized *atomic2.Bool
 }
 
-func makeOpTrail(id uint64, parent *opTrail, branchedFrom *opTrail) *opTrail {
+func makeOpTrail(id goId, parent *opTrail, spawnFrom *opTrail) *opTrail {
 	return &opTrail{
-		id:           id,
-		parent:       parent,
-		branchedFrom: branchedFrom,
-		data:         make(TimestampedMap),
-		finalized:    atomic2.NewBool(false),
+		id:        id,
+		parent:    parent,
+		spawnFrom: spawnFrom,
+		data:      make(TimestampedMap),
+		finalized: atomic2.NewBool(false),
 	}
 }
 
@@ -78,7 +80,7 @@ func (t *opTrail) Succeed() {
 	return
 }
 
-func (t *opTrail) FailIf(err error) error {
+func (t *opTrail) MaybeFail(err error) error {
 	if t.finalized.Load() {
 		return err
 	}
@@ -99,7 +101,7 @@ func (t *opTrail) Here(key string, value interface{}) OpTrail {
 	return t
 }
 
-func (t *opTrail) Go(fn func()) {
+func (t *opTrail) Spawn(fn func()) {
 	go func() {
 		id := curGoroutineID()
 		next := makeOpTrail(id, nil, t)
@@ -109,6 +111,15 @@ func (t *opTrail) Go(fn func()) {
 		fn()
 		tManager.removeTrail(id)
 	}()
+}
+
+func (t *opTrail) Fork() OpTrail {
+	id := atomic.LoadUint64(&t.id)
+	next := makeOpTrail(id, t, nil)
+	tManager.Lock()
+	tManager.trails[id] = next
+	tManager.Unlock()
+	return next
 }
 
 func (t *opTrail) Vanish() {
@@ -129,10 +140,11 @@ func (t *opTrail) finalize(doReport bool) {
 		}
 	}
 
+	id := atomic.LoadUint64(&t.id)
 	if t.parent == nil {
-		tManager.removeTrail(t.id)
+		tManager.removeTrail(id)
 	} else {
-		tManager.setTrail(t.id, t.parent)
+		tManager.setTrail(id, t.parent)
 	}
 	t.finalized.Store(true)
 }

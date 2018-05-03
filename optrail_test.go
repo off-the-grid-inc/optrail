@@ -74,7 +74,7 @@ func TestFailIf(t *testing.T) {
 	op.Here("step2", true)
 	op.Here("step3", 1234567890)
 
-	require.Error(op.FailIf(errors.New("fake error")), "error didn't pass through")
+	require.Error(op.MaybeFail(errors.New("fake error")), "error didn't pass through")
 }
 
 func TestVanish(t *testing.T) {

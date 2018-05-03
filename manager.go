@@ -23,12 +23,12 @@ func newTrailManager() *trailManager {
 func (m *trailManager) beginOpTrail() *opTrail {
 	id := curGoroutineID()
 	m.Lock()
-	defer m.Unlock()
 	c := m.trails[id]
 	if c == nil {
 		c = makeOpTrail(id, nil, nil)
 		m.trails[id] = c
 	}
+	m.Unlock()
 	return c
 }
 
